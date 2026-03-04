@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webstacks Chat Widgets — Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* ── Design tokens ───────────────────────────────────────────── */
+    :root {
+      --ws-black:        #000;
+      --ws-surface:      #0a0a0a;
+      --ws-card:         #111;
+      --ws-border:       #1e1e1e;
+      --ws-border-light: #2a2a2a;
+      --ws-blue:         #3b5bdb;
+      --ws-blue-hover:   #4c6ef5;
+      --ws-text:         #fff;
+      --ws-muted:        #888;
+      --ws-dim:          #555;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--ws-black);
+      color: var(--ws-text);
+      min-height: 100vh;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+    /* ── Range slider ────────────────────────────────────────────── */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+      padding: 0;
+      border: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #3b5bdb;
+      cursor: grab;
+      border: 2.5px solid #000;
+      box-shadow: 0 0 0 3px rgba(59,91,219,.25);
+      transition: box-shadow .15s, background .15s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      background: #4c6ef5;
+      box-shadow: 0 0 0 5px rgba(59,91,219,.3);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #3b5bdb;
+      cursor: grab;
+      border: 2.5px solid #000;
+    }
+
+    /* ── Animations ──────────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes checkPop {
+      0%   { transform: scale(0.5); opacity: 0; }
+      60%  { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .fade-up { animation: fadeUp .3s ease-out forwards; }
+    .check-pop { animation: checkPop .25s ease-out forwards; }
+
+    /* ── Utility ─────────────────────────────────────────────────── */
+    button { font-family: inherit; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback } = React;
+
+    /* ════════════════════════════════════════════════════════════════
+       DESIGN TOKENS (mirrors Webstacks CSS custom props)
+    ════════════════════════════════════════════════════════════════ */
+    const C = {
+      black:       '#000',
+      surface:     '#0a0a0a',
+      card:        '#111',
+      border:      '#1e1e1e',
+      borderLight: '#2a2a2a',
+      blue:        '#3b5bdb',
+      blueHover:   '#4c6ef5',
+      text:        '#fff',
+      muted:       '#888',
+      dim:         '#555',
+    };
+
+    const blueAlpha = (a) => `rgba(59,91,219,${a})`;
+
+    /* ════════════════════════════════════════════════════════════════
+       SHARED: CONFIRM BUTTON
+    ════════════════════════════════════════════════════════════════ */
+    function ConfirmButton({ onClick, label = 'Confirm', disabled = false }) {
+      const [state, setState] = useState('idle'); // idle | sent
+
+      const handleClick = () => {
+        if (disabled || state !== 'idle') return;
+        setState('sent');
+        onClick();
+      };
+
+      return (
+        <button
+          onClick={handleClick}
+          disabled={disabled}
+          style={{
+            marginTop: 12,
+            padding: '8px 18px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background:    state === 'sent'  ? C.borderLight
+                         : disabled          ? 'transparent'
+                         :                    C.blue,
+            color:         state === 'sent'  ? C.muted
+                         : disabled          ? C.dim
+                         :                    '#fff',
+            border:        `1px solid ${
+                             state === 'sent'  ? C.borderLight
+                           : disabled          ? C.border
+                           :                    C.blue}`,
+            borderRadius:  8,
+            fontSize:      13,
+            fontWeight:    500,
+            cursor:        disabled ? 'not-allowed' : 'pointer',
+            transition:    'all .15s',
+            opacity:       disabled ? .5 : 1,
+          }}
+        >
+          {state === 'sent' ? (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Sent
+            </>
+          ) : label}
+        </button>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 1 — EVOLUTION → REVOLUTION SLIDER
+    ════════════════════════════════════════════════════════════════ */
+    const SCOPE_LABELS = [
+      { max: 15,  emoji: '🖌️',  text: 'Small Visual Refresh',  hint: 'Typography, colour, minor layout tweaks' },
+      { max: 35,  emoji: '✨',  text: 'UI Polish',              hint: 'Component updates, tighter spacing' },
+      { max: 55,  emoji: '🔧',  text: 'Partial Redesign',       hint: 'Key sections overhauled, CMS update' },
+      { max: 75,  emoji: '🏗️', text: 'Major Redesign',         hint: 'New structure, new design system' },
+      { max: 90,  emoji: '🚀',  text: 'Full Redesign',          hint: 'Complete rebuild, all sections' },
+      { max: 100, emoji: '🔥',  text: 'Complete Rebrand',       hint: 'Strategy → identity → web → systems' },
+    ];
+
+    function getScope(v) {
+      return SCOPE_LABELS.find(l => v <= l.max) || SCOPE_LABELS.at(-1);
+    }
+
+    function EvolutionSlider({ onSubmit }) {
+      const [value, setValue] = useState(50);
+      const scope = getScope(value);
+
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>
+            How big a change are you looking for?
+          </p>
+
+          {/* End labels */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.dim, letterSpacing: '.04em' }}>EVOLUTION</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.dim, letterSpacing: '.04em' }}>REVOLUTION</span>
+          </div>
+
+          {/* Slider */}
+          <input
+            type="range"
+            min={0} max={100}
+            value={value}
+            onChange={e => setValue(+e.target.value)}
+            style={{
+              background: `linear-gradient(to right, ${C.blue} ${value}%, ${C.border} ${value}%)`,
+              marginBottom: 16,
+            }}
+          />
+
+          {/* Value badge */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 14px',
+            background: blueAlpha(.08),
+            border: `1px solid ${blueAlpha(.2)}`,
+            borderRadius: 10,
+          }}>
+            <span style={{ fontSize: 22, lineHeight: 1 }}>{scope.emoji}</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{scope.text}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{scope.hint}</div>
+            </div>
+            <div style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: C.blue }}>{value}</div>
+          </div>
+
+          <ConfirmButton
+            onClick={() => onSubmit({ scope: value, label: scope.text })}
+            label="Set scope →"
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 2 — BEFORE / AFTER IMAGE SLIDER
+    ════════════════════════════════════════════════════════════════ */
+    /* Placeholder "Before" site — generic corporate look */
+    function BeforeDesign() {
+      return (
+        <div style={{ position: 'absolute', inset: 0, background: '#1c1c3a', display: 'flex', flexDirection: 'column' }}>
+          {/* Nav */}
+          <div style={{ height: 36, background: '#252560', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10, flexShrink: 0 }}>
+            <div style={{ width: 60, height: 8, background: '#4040a0', borderRadius: 4 }} />
+            <div style={{ flex: 1 }} />
+            {[45,40,50].map((w,i) => <div key={i} style={{ width: w, height: 6, background: '#3535885', borderRadius: 3, opacity: .7 }} />)}
+            <div style={{ width: 55, height: 22, background: '#5555cc', borderRadius: 4 }} />
+          </div>
+          {/* Hero */}
+          <div style={{ flex: 1, padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ width: '70%', height: 14, background: '#3535a0', borderRadius: 4, marginTop: 8 }} />
+            <div style={{ width: '85%', height: 8, background: '#2a2a70', borderRadius: 4 }} />
+            <div style={{ width: '55%', height: 8, background: '#2a2a70', borderRadius: 4 }} />
+            <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+              <div style={{ width: 70, height: 26, background: '#5555cc', borderRadius: 4 }} />
+              <div style={{ width: 70, height: 26, background: 'transparent', border: '1px solid #5555cc', borderRadius: 4 }} />
+            </div>
+            {/* Cards */}
+            <div style={{ marginTop: 12, display: 'flex', gap: 6 }}>
+              {[1,2,3].map(i => (
+                <div key={i} style={{ flex: 1, height: 50, background: '#252560', borderRadius: 6, border: '1px solid #353590', display: 'flex', flexDirection: 'column', padding: 8, gap: 4 }}>
+                  <div style={{ width: '60%', height: 6, background: '#4040a0', borderRadius: 3 }} />
+                  <div style={{ width: '80%', height: 4, background: '#2a2a60', borderRadius: 3 }} />
+                  <div style={{ width: '50%', height: 4, background: '#2a2a60', borderRadius: 3 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* BEFORE badge */}
+          <div style={{ position: 'absolute', top: 8, left: 8, padding: '2px 8px', background: 'rgba(0,0,0,.6)', borderRadius: 4, fontSize: 10, color: '#aaa', fontWeight: 600, letterSpacing: '.05em' }}>BEFORE</div>
+        </div>
+      );
+    }
+
+    /* Placeholder "After" site — Webstacks dark system */
+    function AfterDesign() {
+      return (
+        <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          {/* Nav */}
+          <div style={{ height: 36, background: '#0a0a0a', borderBottom: '1px solid #1e1e1e', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10, flexShrink: 0 }}>
+            <span style={{ color: '#3b5bdb', fontFamily: 'monospace', fontSize: 13, fontWeight: 700, letterSpacing: '-1px' }}>[]</span>
+            <div style={{ width: 65, height: 7, background: '#fff', borderRadius: 3, opacity: .85 }} />
+            <div style={{ flex: 1 }} />
+            {[35,42,38].map((w,i) => <div key={i} style={{ width: w, height: 5, background: '#444', borderRadius: 3 }} />)}
+            <div style={{ width: 60, height: 22, background: '#3b5bdb', borderRadius: 6 }} />
+          </div>
+          {/* Hero */}
+          <div style={{ flex: 1, padding: 14, display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ width: '65%', height: 16, background: '#fff', borderRadius: 4, marginTop: 8, opacity: .95 }} />
+            <div style={{ width: '80%', height: 8, background: '#555', borderRadius: 4 }} />
+            <div style={{ width: '50%', height: 8, background: '#333', borderRadius: 4 }} />
+            <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+              <div style={{ width: 80, height: 26, background: '#3b5bdb', borderRadius: 8 }} />
+              <div style={{ width: 80, height: 26, background: 'transparent', border: '1px solid #2a2a2a', borderRadius: 8 }} />
+            </div>
+            {/* Cards */}
+            <div style={{ marginTop: 12, display: 'flex', gap: 6 }}>
+              {[1,2,3].map(i => (
+                <div key={i} style={{ flex: 1, height: 50, background: '#111', borderRadius: 8, border: '1px solid #1e1e1e', display: 'flex', flexDirection: 'column', padding: 8, gap: 4 }}>
+                  <div style={{ width: 16, height: 16, background: 'rgba(59,91,219,.2)', borderRadius: 4, marginBottom: 2 }} />
+                  <div style={{ width: '60%', height: 6, background: '#fff', borderRadius: 3, opacity: .8 }} />
+                  <div style={{ width: '80%', height: 4, background: '#333', borderRadius: 3 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* AFTER badge */}
+          <div style={{ position: 'absolute', top: 8, right: 8, padding: '2px 8px', background: 'rgba(59,91,219,.85)', borderRadius: 4, fontSize: 10, color: '#fff', fontWeight: 600, letterSpacing: '.05em' }}>AFTER</div>
+        </div>
+      );
+    }
+
+    function BeforeAfterSlider({ onSubmit }) {
+      const [pos, setPos] = useState(50);
+      const [dragging, setDragging] = useState(false);
+      const containerRef = useRef(null);
+
+      const calcPos = useCallback((clientX) => {
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        setPos(Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100)));
+      }, []);
+
+      const onMouseMove = useCallback(e => { if (dragging) calcPos(e.clientX); }, [dragging, calcPos]);
+      const onTouchMove = useCallback(e => { if (dragging) calcPos(e.touches[0].clientX); }, [dragging, calcPos]);
+      const stopDrag = useCallback(() => setDragging(false), []);
+
+      useEffect(() => {
+        if (dragging) {
+          window.addEventListener('mousemove', onMouseMove);
+          window.addEventListener('mouseup', stopDrag);
+          window.addEventListener('touchmove', onTouchMove, { passive: true });
+          window.addEventListener('touchend', stopDrag);
+        }
+        return () => {
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', stopDrag);
+          window.removeEventListener('touchmove', onTouchMove);
+          window.removeEventListener('touchend', stopDrag);
+        };
+      }, [dragging, onMouseMove, onTouchMove, stopDrag]);
+
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            Drag the handle to compare before and after ←→
+          </p>
+
+          {/* Container */}
+          <div
+            ref={containerRef}
+            onMouseDown={e => { e.preventDefault(); setDragging(true); calcPos(e.clientX); }}
+            onTouchStart={e => { setDragging(true); calcPos(e.touches[0].clientX); }}
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: 190,
+              borderRadius: 12,
+              overflow: 'hidden',
+              border: `1px solid ${C.border}`,
+              cursor: dragging ? 'col-resize' : 'col-resize',
+              userSelect: 'none',
+              touchAction: 'none',
+            }}
+          >
+            <BeforeDesign />
+
+            {/* After — clipped to right of divider */}
+            <div style={{ position: 'absolute', inset: 0, clipPath: `inset(0 0 0 ${pos}%)` }}>
+              <AfterDesign />
+            </div>
+
+            {/* Divider line */}
+            <div style={{
+              position: 'absolute',
+              top: 0, bottom: 0,
+              left: `${pos}%`,
+              width: 2,
+              background: 'rgba(255,255,255,.9)',
+              transform: 'translateX(-50%)',
+              pointerEvents: 'none',
+              boxShadow: '0 0 8px rgba(0,0,0,.5)',
+            }} />
+
+            {/* Handle */}
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: `${pos}%`,
+              transform: 'translate(-50%, -50%)',
+              width: 34,
+              height: 34,
+              background: '#fff',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 12px rgba(0,0,0,.6)',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}>
+              <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
+                <path d="M4 5H1M1 5L3 3M1 5L3 7" stroke="#333" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M12 5H15M15 5L13 3M15 5L13 7" stroke="#333" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* Position label */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: C.dim }}>
+            <span>← Before ({Math.round(pos)}%)</span>
+            <span>After ({Math.round(100-pos)}%) →</span>
+          </div>
+
+          <ConfirmButton
+            onClick={() => onSubmit({ viewed: true, splitPosition: Math.round(pos) })}
+            label="That looks great →"
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 3 — PRIORITY CARD SELECTOR
+    ════════════════════════════════════════════════════════════════ */
+    const PRIORITIES = [
+      { id: 'speed',        emoji: '⚡',  label: 'Page Speed',     desc: 'Core Web Vitals, load time' },
+      { id: 'seo',          emoji: '🔍',  label: 'Organic SEO',    desc: 'Traffic & search rankings' },
+      { id: 'brand',        emoji: '🎨',  label: 'Brand & Design', desc: 'Visual credibility & trust' },
+      { id: 'conversions',  emoji: '📈',  label: 'Conversions',    desc: 'Demo requests & pipeline' },
+      { id: 'accessibility',emoji: '♿',  label: 'Accessibility',  desc: 'WCAG compliance & reach' },
+      { id: 'cms',          emoji: '📝',  label: 'Easy CMS',       desc: 'Self-serve content updates' },
+    ];
+
+    function PriorityCardSelector({ onSubmit }) {
+      const [selected, setSelected] = useState(new Set());
+
+      const toggle = id => {
+        setSelected(prev => {
+          const next = new Set(prev);
+          next.has(id) ? next.delete(id) : next.add(id);
+          return next;
+        });
+      };
+
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+            What matters most for your new site? Pick all that apply.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {PRIORITIES.map(opt => {
+              const on = selected.has(opt.id);
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => toggle(opt.id)}
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: 4,
+                    padding: '11px 12px',
+                    background:   on ? blueAlpha(.1)  : C.card,
+                    border:       `1px solid ${on ? blueAlpha(.45) : C.border}`,
+                    borderRadius: 10,
+                    cursor:       'pointer',
+                    transition:   'all .15s',
+                    textAlign:    'left',
+                  }}
+                >
+                  {on && (
+                    <div className="check-pop" style={{
+                      position: 'absolute',
+                      top: 7, right: 8,
+                      width: 16, height: 16,
+                      background: C.blue,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 9,
+                      color: '#fff',
+                      fontWeight: 700,
+                    }}>✓</div>
+                  )}
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>{opt.emoji}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: on ? '#fff' : C.text, marginTop: 2 }}>
+                    {opt.label}
+                  </span>
+                  <span style={{ fontSize: 10, color: C.dim, lineHeight: 1.4 }}>{opt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <ConfirmButton
+            onClick={() => onSubmit({ priorities: [...selected].map(id => PRIORITIES.find(p => p.id === id).label) })}
+            label={selected.size ? `Confirm (${selected.size} selected) →` : 'Select priorities'}
+            disabled={selected.size === 0}
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 4 — TIMELINE PICKER
+    ════════════════════════════════════════════════════════════════ */
+    const TIMELINES = [
+      { id: 'asap',      emoji: '🔥',  label: 'Next 30 days',   sub: 'We need this ASAP',            urgency: 'high' },
+      { id: 'quarter',   emoji: '📅',  label: 'This quarter',   sub: 'Q2–Q3 launch goal',            urgency: 'medium' },
+      { id: 'longer',    emoji: '🗓️', label: '6+ months',      sub: 'Planning strategically ahead', urgency: 'low' },
+      { id: 'exploring', emoji: '🧭',  label: 'Just exploring', sub: 'No set timeline yet',          urgency: 'none' },
+    ];
+
+    function TimelinePicker({ onSubmit }) {
+      const [selected, setSelected] = useState(null);
+
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            When are you looking to launch?
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {TIMELINES.map(opt => {
+              const on = selected === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setSelected(opt.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '11px 14px',
+                    background:   on ? blueAlpha(.1)  : C.card,
+                    border:       `1px solid ${on ? blueAlpha(.4) : C.border}`,
+                    borderRadius: 10,
+                    cursor:       'pointer',
+                    transition:   'all .15s',
+                    textAlign:    'left',
+                    width:        '100%',
+                  }}
+                >
+                  <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{opt.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#fff' : C.text }}>{opt.label}</div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 1 }}>{opt.sub}</div>
+                  </div>
+                  {/* Radio indicator */}
+                  <div style={{
+                    width: 18, height: 18,
+                    borderRadius: '50%',
+                    border: `2px solid ${on ? C.blue : C.dim}`,
+                    background: on ? C.blue : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all .15s',
+                  }}>
+                    {on && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <ConfirmButton
+            onClick={() => onSubmit({ timeline: TIMELINES.find(t => t.id === selected)?.label, urgency: TIMELINES.find(t => t.id === selected)?.urgency })}
+            label="Confirm timeline →"
+            disabled={!selected}
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 5 — BUDGET RANGE SELECTOR
+    ════════════════════════════════════════════════════════════════ */
+    const BUDGETS = [
+      { id: 'b1', label: 'Under $50k',    sub: 'Targeted scope projects',       color: C.dim },
+      { id: 'b2', label: '$50k – $100k',  sub: 'Mid-market web engagements',    color: C.muted },
+      { id: 'b3', label: '$100k – $250k', sub: 'Full website programs',          color: C.text },
+      { id: 'b4', label: '$250k+',        sub: 'Enterprise-scale initiatives',  color: '#a5b4fc' },
+      { id: 'b5', label: "Let's talk",    sub: "Not sure yet — let's discuss",  color: C.blue, special: true },
+    ];
+
+    function BudgetSelector({ onSubmit }) {
+      const [selected, setSelected] = useState(null);
+
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            What's your approximate budget range?
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {BUDGETS.map((opt, i) => {
+              const on = selected === opt.id;
+              const isSpecial = !!opt.special;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setSelected(opt.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '10px 14px',
+                    background:   on  ? (isSpecial ? blueAlpha(.15) : blueAlpha(.1)) : C.card,
+                    border:       `1px solid ${on ? blueAlpha(.45) : C.border}`,
+                    borderRadius: 8,
+                    cursor:       'pointer',
+                    transition:   'all .15s',
+                    textAlign:    'left',
+                    width:        '100%',
+                    marginTop:    isSpecial ? 4 : 0,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#fff' : opt.color }}>
+                      {opt.label}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 1 }}>{opt.sub}</div>
+                  </div>
+                  {/* Bar indicator (for non-special) */}
+                  {!isSpecial ? (
+                    <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                      {[1,2,3,4].map(j => (
+                        <div key={j} style={{
+                          width: 4, height: 14,
+                          borderRadius: 2,
+                          background: j <= i + 1 ? (on ? C.blue : C.dim) : C.border,
+                          transition: 'background .15s',
+                        }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 16, color: on ? C.blue : C.dim }}>💬</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <ConfirmButton
+            onClick={() => onSubmit({ budget: BUDGETS.find(b => b.id === selected)?.label })}
+            label="Confirm budget →"
+            disabled={!selected}
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 6 — WEBSITE GRADER
+    ════════════════════════════════════════════════════════════════ */
+    const GRADE_DIMS = [
+      { id: 'design',  label: 'Design & Brand',      emoji: '🎨' },
+      { id: 'speed',   label: 'Page Speed',           emoji: '⚡' },
+      { id: 'content', label: 'Content & Messaging',  emoji: '✍️' },
+      { id: 'leads',   label: 'Lead Generation',      emoji: '📈' },
+    ];
+
+    function WebsiteGrader({ onSubmit }) {
+      const [ratings, setRatings] = useState({});
+      const [hovered, setHovered] = useState({});
+      const allRated = GRADE_DIMS.every(d => ratings[d.id] !== undefined);
+      const avg = allRated
+        ? (Object.values(ratings).reduce((a, b) => a + b, 0) / GRADE_DIMS.length).toFixed(1)
+        : null;
+
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 1.5 }}>
+            Rate your current website honestly — 1 painful, 5 perfect:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {GRADE_DIMS.map(dim => (
+              <div key={dim.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 16, flexShrink: 0, width: 22 }}>{dim.emoji}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: C.text, flex: 1 }}>{dim.label}</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {[1,2,3,4,5].map(star => {
+                    const active = star <= (hovered[dim.id] ?? ratings[dim.id] ?? 0);
+                    return (
+                      <button
+                        key={star}
+                        onMouseEnter={() => setHovered(h => ({...h, [dim.id]: star}))}
+                        onMouseLeave={() => setHovered(h => ({...h, [dim.id]: undefined}))}
+                        onClick={() => setRatings(r => ({...r, [dim.id]: star}))}
+                        style={{
+                          width: 28, height: 28,
+                          background: 'transparent', border: 'none',
+                          cursor: 'pointer', fontSize: 20, padding: 0, lineHeight: 1,
+                          color: active ? '#fac800' : C.border,
+                          transition: 'color .1s',
+                        }}
+                      >★</button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          {avg && (
+            <div className="fade-up" style={{
+              marginTop: 14, padding: '10px 14px',
+              background: avg < 3 ? 'rgba(239,68,68,.08)' : blueAlpha(.08),
+              border: `1px solid ${avg < 3 ? 'rgba(239,68,68,.25)' : blueAlpha(.2)}`,
+              borderRadius: 10, fontSize: 12, lineHeight: 1.5,
+              color: avg < 3 ? '#f87171' : C.muted,
+            }}>
+              {avg < 2.5
+                ? `${avg}/5 — That's a tough score. There's a big opportunity here. 🚀`
+                : avg < 3.5
+                ? `${avg}/5 — Solid foundation with clear room to improve.`
+                : `${avg}/5 — Respectable! We'd love to push it even further.`}
+            </div>
+          )}
+          <ConfirmButton
+            onClick={() => onSubmit({ ratings, avg: parseFloat(avg) })}
+            label="Submit scores →"
+            disabled={!allRated}
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 7 — TECH STACK PICKER
+    ════════════════════════════════════════════════════════════════ */
+    const TECH_OPTIONS = [
+      { id: 'wordpress',  label: 'WordPress',     emoji: '🔵', note: 'Most common migration' },
+      { id: 'webflow',    label: 'Webflow',        emoji: '🌊', note: 'Design-forward' },
+      { id: 'hubspot',    label: 'HubSpot CMS',    emoji: '🟠', note: 'Marketing-native' },
+      { id: 'contentful', label: 'Contentful',     emoji: '📦', note: 'Headless CMS' },
+      { id: 'sanity',     label: 'Sanity',         emoji: '🟢', note: 'Structured content' },
+      { id: 'custom',     label: 'Custom / Other', emoji: '⚙️', note: 'Bespoke build' },
+    ];
+
+    function TechStackPicker({ onSubmit }) {
+      const [selected, setSelected] = useState(new Set());
+      const toggle = id => setSelected(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            What platform is your site currently on?
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {TECH_OPTIONS.map(opt => {
+              const on = selected.has(opt.id);
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => toggle(opt.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px',
+                    background: on ? blueAlpha(.1) : C.card,
+                    border: `1px solid ${on ? blueAlpha(.45) : C.border}`,
+                    borderRadius: 10, cursor: 'pointer',
+                    transition: 'all .15s', textAlign: 'left', position: 'relative',
+                  }}
+                >
+                  {on && (
+                    <div className="check-pop" style={{
+                      position: 'absolute', top: 6, right: 8,
+                      width: 16, height: 16, background: C.blue, borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 9, color: '#fff', fontWeight: 700,
+                    }}>✓</div>
+                  )}
+                  <span style={{ fontSize: 18, lineHeight: 1 }}>{opt.emoji}</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: on ? '#fff' : C.text }}>{opt.label}</div>
+                    <div style={{ fontSize: 10, color: C.dim, marginTop: 1 }}>{opt.note}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <ConfirmButton
+            onClick={() => onSubmit({ stack: [...selected].map(id => TECH_OPTIONS.find(o => o.id === id).label) })}
+            label={selected.size ? `Confirm (${selected.size}) →` : 'Select platform'}
+            disabled={selected.size === 0}
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 8 — COMPANY STAGE
+    ════════════════════════════════════════════════════════════════ */
+    const STAGES = [
+      { id: 'seed',       emoji: '🌱', label: 'Seed / Series A', sub: '1–50 employees · early growth',       accent: '#22c55e' },
+      { id: 'growth',     emoji: '📈', label: 'Growth Stage',     sub: '50–200 employees · scaling fast',     accent: '#3b5bdb' },
+      { id: 'scaleup',    emoji: '🚀', label: 'Scale-up',         sub: '200–500 employees · market expansion',accent: '#a855f7' },
+      { id: 'enterprise', emoji: '🏢', label: 'Enterprise',       sub: '500+ employees · complex org',        accent: '#f59e0b' },
+    ];
+
+    function CompanyStage({ onSubmit }) {
+      const [selected, setSelected] = useState(null);
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            Where is your company right now?
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {STAGES.map(s => {
+              const on = selected === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSelected(s.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '12px 16px',
+                    background: on ? `${s.accent}18` : C.card,
+                    border: `1px solid ${on ? `${s.accent}70` : C.border}`,
+                    borderRadius: 10, cursor: 'pointer',
+                    transition: 'all .15s', textAlign: 'left', width: '100%',
+                  }}
+                >
+                  <span style={{ fontSize: 24, flexShrink: 0, lineHeight: 1 }}>{s.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#fff' : C.text }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 1 }}>{s.sub}</div>
+                  </div>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: '50%',
+                    border: `2px solid ${on ? s.accent : C.dim}`,
+                    background: on ? s.accent : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, transition: 'all .15s',
+                  }}>
+                    {on && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <ConfirmButton
+            onClick={() => onSubmit({ stage: STAGES.find(s => s.id === selected)?.label })}
+            label="Confirm stage →"
+            disabled={!selected}
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 9 — PAIN POINT RANKER
+    ════════════════════════════════════════════════════════════════ */
+    const PAIN_POINTS = [
+      { id: 'outdated', emoji: '😬', label: 'Outdated design',         sub: "Embarrassed to send people to our site" },
+      { id: 'cms',      emoji: '😤', label: 'Hard to update content',  sub: 'Every edit needs a developer' },
+      { id: 'leads',    emoji: '😞', label: 'Not generating leads',    sub: 'Traffic but no conversions' },
+      { id: 'slow',     emoji: '🐢', label: 'Slow performance',        sub: 'Failing Core Web Vitals' },
+      { id: 'mobile',   emoji: '📱', label: 'Poor mobile experience',  sub: 'Broken or ugly on phones' },
+      { id: 'brand',    emoji: '🎭', label: "Doesn't match our brand", sub: "Site feels off from who we are now" },
+    ];
+
+    function PainPointRanker({ onSubmit }) {
+      const [selected, setSelected] = useState(new Set());
+      const toggle = id => setSelected(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+            Which of these hit closest to home? Pick all that apply.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {PAIN_POINTS.map(p => {
+              const on = selected.has(p.id);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => toggle(p.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px',
+                    background: on ? 'rgba(239,68,68,.08)' : C.card,
+                    border: `1px solid ${on ? 'rgba(239,68,68,.35)' : C.border}`,
+                    borderRadius: 10, cursor: 'pointer',
+                    transition: 'all .15s', textAlign: 'left', width: '100%',
+                  }}
+                >
+                  <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1 }}>{p.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#fff' : C.text }}>{p.label}</div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 1 }}>{p.sub}</div>
+                  </div>
+                  {on && (
+                    <div className="check-pop" style={{
+                      width: 18, height: 18, borderRadius: '50%',
+                      background: 'rgba(239,68,68,.7)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, color: '#fff', fontWeight: 700, flexShrink: 0,
+                    }}>✓</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <ConfirmButton
+            onClick={() => onSubmit({ pains: [...selected].map(id => PAIN_POINTS.find(p => p.id === id).label) })}
+            label={selected.size ? `These hit home (${selected.size}) →` : 'Select pain points'}
+            disabled={selected.size === 0}
+          />
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET 10 — MEETING BOOKER
+    ════════════════════════════════════════════════════════════════ */
+    const SLOTS = [
+      { id: 's1', day: 'Tomorrow',  time: '10:00 AM PST', date: 'Tue · Mar 4' },
+      { id: 's2', day: 'Wednesday', time: '2:00 PM PST',  date: 'Wed · Mar 5' },
+      { id: 's3', day: 'Thursday',  time: '11:00 AM PST', date: 'Thu · Mar 6' },
+    ];
+
+    function MeetingBooker({ onSubmit }) {
+      const [slot, setSlot] = useState(null);
+      const [name, setName] = useState('');
+      const [email, setEmail] = useState('');
+      const [booked, setBooked] = useState(false);
+      const canBook = slot && name.trim() && email.includes('@');
+      const chosen = SLOTS.find(s => s.id === slot);
+
+      if (booked) {
+        return (
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 6 }}>You're booked!</div>
+            <div style={{ fontSize: 12, color: C.muted }}>{chosen?.day} · {chosen?.time}</div>
+            <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>Invite sent to {email}</div>
+          </div>
+        );
+      }
+
+      return (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
+            Pick a time for a 30-min intro call with the Webstacks team:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 14 }}>
+            {SLOTS.map(s => {
+              const on = slot === s.id;
+              const dayNum = s.date.split(' ').at(-1);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSlot(s.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '11px 14px',
+                    background: on ? blueAlpha(.12) : C.card,
+                    border: `1px solid ${on ? blueAlpha(.5) : C.border}`,
+                    borderRadius: 10, cursor: 'pointer',
+                    transition: 'all .15s', textAlign: 'left', width: '100%',
+                  }}
+                >
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 8,
+                    background: on ? blueAlpha(.2) : C.border,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: on ? C.blue : C.dim, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                      {s.day.slice(0, 3)}
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: on ? '#fff' : C.muted, lineHeight: 1.2 }}>{dayNum}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? '#fff' : C.text }}>{s.day}</div>
+                    <div style={{ fontSize: 11, color: C.dim }}>{s.time} · 30 min</div>
+                  </div>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: '50%',
+                    border: `2px solid ${on ? C.blue : C.dim}`,
+                    background: on ? C.blue : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, transition: 'all .15s',
+                  }}>
+                    {on && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {slot && (
+            <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
+              <input
+                placeholder="Your name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                style={{
+                  padding: '9px 12px', background: C.surface,
+                  border: `1px solid ${name.trim() ? blueAlpha(.4) : C.border}`,
+                  borderRadius: 8, fontSize: 13, color: C.text,
+                  outline: 'none', fontFamily: 'inherit', transition: 'border .15s',
+                }}
+              />
+              <input
+                placeholder="Work email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                style={{
+                  padding: '9px 12px', background: C.surface,
+                  border: `1px solid ${email.includes('@') ? blueAlpha(.4) : C.border}`,
+                  borderRadius: 8, fontSize: 13, color: C.text,
+                  outline: 'none', fontFamily: 'inherit', transition: 'border .15s',
+                }}
+              />
+            </div>
+          )}
+          <button
+            onClick={() => {
+              if (!canBook) return;
+              setBooked(true);
+              onSubmit({ slot: chosen?.day, time: chosen?.time, name, email });
+            }}
+            disabled={!canBook}
+            style={{
+              marginTop: 12, width: '100%', padding: '11px',
+              background: canBook ? C.blue : 'transparent',
+              border: `1px solid ${canBook ? C.blue : C.border}`,
+              borderRadius: 8, fontSize: 13, fontWeight: 600,
+              color: canBook ? '#fff' : C.dim,
+              cursor: canBook ? 'pointer' : 'not-allowed',
+              transition: 'all .2s', fontFamily: 'inherit',
+            }}
+          >
+            {slot ? '📅 Book my spot' : 'Select a time first'}
+          </button>
+        </div>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       CHAT SHELL
+    ════════════════════════════════════════════════════════════════ */
+    function BotAvatar() {
+      return (
+        <div style={{
+          width: 28, height: 28,
+          borderRadius: 8,
+          background: blueAlpha(.12),
+          border: `1px solid ${blueAlpha(.25)}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <span style={{ color: C.blue, fontFamily: 'monospace', fontSize: 11, fontWeight: 700 }}>[]</span>
+        </div>
+      );
+    }
+
+    function BotBubble({ children }) {
+      return (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <BotAvatar />
+          <div style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: '3px 12px 12px 12px',
+            maxWidth: '88%',
+            overflow: 'hidden',
+          }}>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function UserBubble({ children }) {
+      return (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{
+            background: blueAlpha(.12),
+            border: `1px solid ${blueAlpha(.25)}`,
+            borderRadius: '12px 3px 12px 12px',
+            padding: '10px 14px',
+            maxWidth: '75%',
+            fontSize: 13,
+            color: '#c7d2fe',
+            lineHeight: 1.6,
+          }}>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function BotText({ children }) {
+      return (
+        <BotBubble>
+          <div style={{ padding: '10px 14px', fontSize: 13, color: C.text, lineHeight: 1.65 }}>
+            {children}
+          </div>
+        </BotBubble>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       WIDGET SECTION — wraps each widget in a simulated chat thread
+    ════════════════════════════════════════════════════════════════ */
+    function getFollowUp(widgetId, data) {
+      if (widgetId === 'evolution') {
+        const v = data.scope;
+        if (v <= 35) return `A focused refresh — smart. I'll zero in on the highest-impact UI changes that move the needle without a full rebuild.`;
+        if (v <= 60) return `A partial redesign gives us room to fix what's broken and modernise the experience. I'll pull in some relevant case studies.`;
+        if (v <= 80) return `A major redesign is our sweet spot. We'll approach it systematically — strategy, design system, then build. Typically 10–14 weeks.`;
+        return `Full rebrand — I love it. We'd start with a 2-week discovery to nail strategy and identity before touching a pixel. Want to see what that looks like?`;
+      }
+      if (widgetId === 'before-after') {
+        return `That transformation took about 12 weeks. The new site converted 3.4× better in the first quarter. Want to see the full case study?`;
+      }
+      if (widgetId === 'priority') {
+        const p = data.priorities.join(', ');
+        return `${p} — noted. Our B2B web programs are built around exactly those outcomes. I'll tailor the approach around what moves the needle for you.`;
+      }
+      if (widgetId === 'timeline') {
+        const t = data.timeline;
+        if (t === 'Next 30 days') return `That's tight but we have a fast-track path. We'd need to kick off discovery this week. Want me to check for open slots?`;
+        if (t === 'This quarter') return `Great timing. A typical engagement kicks off within 2 weeks of signing. Let me outline what Q2 could look like.`;
+        if (t === '6+ months') return `Planning ahead is a superpower. We'd start with a discovery sprint now and design the full program around your launch date.`;
+        return `No rush at all. I'll send you our B2B website planning guide — it's the best resource for building the internal business case.`;
+      }
+      if (widgetId === 'budget') {
+        const b = data.budget;
+        if (b === "Let's talk") return `Happy to explore options together. Most of our B2B clients end up in the $75k–$200k range — I'll map out what's possible at different tiers.`;
+        return `${b} — that's a workable range. I'll put together a scope that maximises impact within that investment. Want to see a sample breakdown?`;
+      }
+      if (widgetId === 'grader') {
+        const avg = data.avg;
+        if (avg < 2.5) return `Ouch — that score tells us everything. The good news: low bar = massive upside. A Webstacks engagement typically moves that needle by 40–60% across all four areas.`;
+        if (avg < 3.5) return `${avg}/5 — there's real opportunity here. With the right program, we typically see significant improvement across all those metrics in 90 days.`;
+        return `${avg}/5 — solid! That score tells us you've invested before. We'd focus on the gaps and push every dimension toward a 5.`;
+      }
+      if (widgetId === 'techstack') {
+        const s = data.stack.join(', ');
+        return `${s} — noted. We've done dozens of migrations from those platforms. I'll pull a relevant case study that matches your exact stack.`;
+      }
+      if (widgetId === 'stage') {
+        const st = data.stage;
+        if (st === 'Seed / Series A') return `Seed stage is the perfect time to build a brand-first site that grows with you. We have a startup-focused program built for exactly this moment.`;
+        if (st === 'Growth Stage') return `Growth stage is where the website becomes a real revenue asset — pipeline, credibility, SEO all compound from here. Let's build something that scales.`;
+        if (st === 'Scale-up') return `At scale-up, we typically work across multiple markets and personas. Our composable approach makes that manageable without a monolithic rebuild.`;
+        return `Enterprise engagements are our largest programs — usually 6–12 months, multiple workstreams. Let me connect you directly with our enterprise lead.`;
+      }
+      if (widgetId === 'pains') {
+        const count = data.pains.length;
+        const first = data.pains[0];
+        return `"${first}" — we hear that one constantly. Every point you picked has a direct fix in our playbook. I'll frame the proposal around solving those ${count} pain point${count > 1 ? 's' : ''} specifically.`;
+      }
+      if (widgetId === 'meeting') {
+        return `You're confirmed, ${data.name}! See you ${data.slot} at ${data.time}. Calendar invite going to ${data.email} now. Looking forward to it 👋`;
+      }
+      return '';
+    }
+
+    function WidgetSection({ id, num, title, trigger, Widget, log, setLog }) {
+      const [submitted, setSubmitted] = useState(false);
+      const [submitData, setSubmitData] = useState(null);
+      const [userLabel, setUserLabel] = useState('');
+
+      const handleSubmit = (data) => {
+        setSubmitData(data);
+        setSubmitted(true);
+        const label = data.label || data.timeline || data.budget || data.stage
+          || (data.priorities ? data.priorities.join(', ') : null)
+          || (data.stack ? data.stack.join(', ') : null)
+          || (data.pains ? data.pains.join(', ') : null)
+          || (data.avg != null ? `Avg score: ${data.avg}/5` : null)
+          || (data.slot ? `Booking: ${data.slot} at ${data.time}` : null)
+          || (data.viewed ? 'Viewed the transformation' : null)
+          || JSON.stringify(data);
+        setUserLabel(label);
+        setLog(prev => [{ id, data, ts: new Date().toLocaleTimeString() }, ...prev]);
+      };
+
+      return (
+        <section style={{ marginBottom: 48 }} className="fade-up">
+          {/* Badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <div style={{
+              width: 22, height: 22,
+              borderRadius: 6,
+              background: blueAlpha(.12),
+              border: `1px solid ${blueAlpha(.3)}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, color: C.blue,
+              flexShrink: 0,
+            }}>{num}</div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{title}</span>
+          </div>
+
+          {/* Chat thread */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <BotText>{trigger}</BotText>
+
+            {/* Widget bubble — dims when submitted */}
+            <BotBubble>
+              <div style={{ opacity: submitted ? .45 : 1, pointerEvents: submitted ? 'none' : 'auto', transition: 'opacity .3s' }}>
+                <Widget onSubmit={handleSubmit} />
+              </div>
+            </BotBubble>
+
+            {/* User echo + bot follow-up */}
+            {submitted && (
+              <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <UserBubble>{userLabel}</UserBubble>
+                <BotText>{getFollowUp(id, submitData)}</BotText>
+              </div>
+            )}
+          </div>
+        </section>
+      );
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       ROOT APP
+    ════════════════════════════════════════════════════════════════ */
+    function App() {
+      const [log, setLog] = useState([]);
+
+      const widgets = [
+        {
+          id: 'evolution',
+          num: '1',
+          title: 'Evolution → Revolution Slider',
+          trigger: "How significant a change are you looking for? Drag to set the scope — from a quick visual refresh all the way to a complete rebrand.",
+          Widget: EvolutionSlider,
+        },
+        {
+          id: 'before-after',
+          num: '2',
+          title: 'Before / After Image Slider',
+          trigger: "Here's an example of a full Webstacks transformation. Drag the handle to compare the before and after 👇",
+          Widget: BeforeAfterSlider,
+        },
+        {
+          id: 'priority',
+          num: '3',
+          title: 'Priority Card Selector',
+          trigger: "What does success look like for your new website? Select everything that matters to your team:",
+          Widget: PriorityCardSelector,
+        },
+        {
+          id: 'timeline',
+          num: '4',
+          title: 'Timeline Picker',
+          trigger: "When are you looking to launch? This helps us put the right team and pace in place.",
+          Widget: TimelinePicker,
+        },
+        {
+          id: 'budget',
+          num: '5',
+          title: 'Budget Range Selector',
+          trigger: "To point you to the right program, what's your approximate budget range for this project?",
+          Widget: BudgetSelector,
+        },
+        {
+          id: 'grader',
+          num: '6',
+          title: 'Website Grader',
+          trigger: "Before we dive in — how would you honestly rate your current website? This helps us understand the baseline.",
+          Widget: WebsiteGrader,
+        },
+        {
+          id: 'techstack',
+          num: '7',
+          title: 'Tech Stack Picker',
+          trigger: "What platform is your site currently built on? This helps us scope the migration and estimate complexity.",
+          Widget: TechStackPicker,
+        },
+        {
+          id: 'stage',
+          num: '8',
+          title: 'Company Stage',
+          trigger: "Just so I can tailor the right program — where is your company right now?",
+          Widget: CompanyStage,
+        },
+        {
+          id: 'pains',
+          num: '9',
+          title: 'Pain Point Ranker',
+          trigger: "I'll be straight with you — which of these website problems are you actually dealing with right now?",
+          Widget: PainPointRanker,
+        },
+        {
+          id: 'meeting',
+          num: '10',
+          title: 'Meeting Booker',
+          trigger: "Based on everything you've shared, a quick call with our team would be really valuable. Grab a time that works 👇",
+          Widget: MeetingBooker,
+        },
+      ];
+
+      return (
+        <div style={{ display: 'flex', minHeight: '100vh' }}>
+
+          {/* ── Main chat column ── */}
+          <div style={{ flex: 1, maxWidth: 700, margin: '0 auto', padding: '40px 24px', minWidth: 0 }}>
+
+            {/* Header */}
+            <header style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              marginBottom: 40,
+              paddingBottom: 20,
+              borderBottom: `1px solid ${C.border}`,
+            }}>
+              <div style={{
+                width: 38, height: 38,
+                borderRadius: 10,
+                background: blueAlpha(.1),
+                border: `1px solid ${blueAlpha(.2)}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ color: C.blue, fontFamily: 'monospace', fontSize: 15, fontWeight: 700 }}>[]</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>Webstacks Chat Widgets</div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>10 interactive widgets — click Confirm on each to see the follow-up</div>
+              </div>
+            </header>
+
+            {widgets.map(w => (
+              <WidgetSection key={w.id} {...w} log={log} setLog={setLog} />
+            ))}
+
+            {/* Footer */}
+            <div style={{ paddingTop: 20, borderTop: `1px solid ${C.border}`, textAlign: 'center' }}>
+              <p style={{ fontSize: 11, color: C.dim }}>
+                Each widget emits a structured value — see the Event Log →
+              </p>
+            </div>
+          </div>
+
+          {/* ── Event log sidebar ── */}
+          <aside style={{
+            width: 260,
+            borderLeft: `1px solid ${C.border}`,
+            padding: '24px 14px',
+            position: 'sticky',
+            top: 0,
+            height: '100vh',
+            overflowY: 'auto',
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.dim, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 4 }}>
+              Event Log
+            </div>
+            {log.length === 0 ? (
+              <div style={{ fontSize: 12, color: C.dim, fontStyle: 'italic', lineHeight: 1.6 }}>
+                Interact with a widget and click Confirm to see the emitted value here…
+              </div>
+            ) : log.map((entry, i) => (
+              <div key={i} className="fade-up" style={{
+                padding: '10px 12px',
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                fontSize: 11,
+              }}>
+                <div style={{ color: C.blue, fontWeight: 600, marginBottom: 4 }}>{entry.id}</div>
+                <pre style={{
+                  color: C.muted,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: 10,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  margin: 0,
+                }}>
+                  {JSON.stringify(entry.data, null, 2)}
+                </pre>
+                <div style={{ color: C.dim, marginTop: 5, fontSize: 10 }}>{entry.ts}</div>
+              </div>
+            ))}
+          </aside>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
