@@ -19,7 +19,6 @@
       --ws-blue:         #3b5bdb;
       --ws-blue-hover:   #4c6ef5;
       --ws-text:         #fff;
-      
       --ws-muted:        #888;
       --ws-dim:          #555;
     }
@@ -1409,5 +1408,8 @@
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
+  <!-- Agentation in same document so selection works (no iframe) -->
+  <div id="agentation-root"></div>
+  <script type="module" src="/src/agentation-standalone.jsx"></script>
 </body>
 </html>
